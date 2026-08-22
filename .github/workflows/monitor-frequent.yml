@@ -1,0 +1,56 @@
+name: Blinkit stock watch (frequent ~2-3 min)
+
+# NEAR-REAL-TIME OPTION. Use this INSTEAD OF monitor.yml, not alongside it
+# (running both would double your alerts - delete/disable monitor.yml first).
+#
+# Why a loop? GitHub's cron won't reliably fire faster than ~5 min. So instead
+# this triggers once an hour and then the script checks every LOOP_MINUTES for
+# ~55 minutes before the job ends and the next hourly trigger takes over. That
+# gives a true ~2-3 minute cadence.
+#
+# COST: free only on a PUBLIC repo (unlimited Actions minutes). On a PRIVATE
+# repo this burns far past the 2,000 free minutes/month - see README.
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # once an hour; the job then loops internally for ~58 min
+  workflow_dispatch: {}
+
+concurrency:
+  group: blinkit-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 63
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check stock on a loop and notify
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LOOP_MINUTES: "3"          # check every 3 minutes (set "2" for ~2 min)
+          LOOP_TOTAL_MINUTES: "58"   # keep looping for ~58 min, then the hourly trigger restarts it
+        run: python watch.py
+
+      - name: Save state
+        if: always()
+        run: |
+          git config user.name "stock-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          if git diff --cached --quiet; then
+            echo "No state change."
+          else
+            git commit -m "update stock state [skip ci]"
+            git push
+          fi

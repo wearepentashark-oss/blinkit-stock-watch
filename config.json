@@ -1,0 +1,26 @@
+{
+  "_comment": "Watched products x locations. Every product is checked at every location. Coordinates were resolved from your pincodes to serviceable points that Blinkit's API answers. See README.md.",
+
+  "alert_on_first_seen": true,
+  "notify_when_back_out_of_stock": false,
+
+  "heartbeat": true,
+  "heartbeat_hour_ist": 9,
+
+  "products": [
+    { "id": "1383211", "label": "Hot Wheels 2024 Aston Martin Vantage GT3" },
+    { "id": "1373706", "label": "Hot Wheels BMW M4" },
+    { "id": "1373562", "label": "Hot Wheels Neon Speeders Porsche Cayman S" },
+    { "id": "804925",  "label": "Hot Wheels Nissan Skyline GT-R (BNR34)" },
+    { "id": "804835",  "label": "Hot Wheels Aston Martin Aramco F1 Team" },
+    { "id": "805944",  "label": "Hot Wheels BMW M4 GT3" }
+  ],
+
+  "locations": [
+    { "label": "400066 Borivali East",   "lat": 19.2313448, "lon": 72.8635299 },
+    { "label": "401107 Mira Road East",  "lat": 19.2832885, "lon": 72.8809978 },
+    { "label": "400097 Malad East",      "lat": 19.1838631, "lon": 72.8584321 },
+    { "label": "400057 Vile Parle East", "lat": 19.1007377, "lon": 72.8484952 },
+    { "label": "400099 Andheri East",    "lat": 19.0995755, "lon": 72.8701690 }
+  ]
+}
