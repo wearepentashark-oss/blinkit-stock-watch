@@ -39,7 +39,7 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONUNBUFFERED: "1"      # stream watch.py's log lines live instead of buffering
-          LOOP_MINUTES: "3"          # check every 3 minutes (set "2" for ~2 min)
+          LOOP_MINUTES: "1.5"        # check every 1.5 minutes (e.g. "1" for 1 min, "2" for 2 min)
           LOOP_TOTAL_MINUTES: "58"   # keep looping for ~58 min, then the hourly trigger restarts it
         run: python watch.py
 
