@@ -8,13 +8,11 @@ name: Blinkit stock watch (frequent ~2-3 min)
 # this burns far past the 2,000 free minutes/month - see README.
 
 on:
-  schedule:
-    # Fire every 15 min as insurance. The concurrency group means extra triggers
-    # never start a second run - they just keep ONE fresh run QUEUED, which starts
-    # the moment the current ~6h job ends (or if it ever dies early). So even if
-    # GitHub delays/drops some scheduled triggers overnight, coverage holds and
-    # there are no overlaps / no double alerts.
-    - cron: "*/15 * * * *"
+  # DISABLED: Blinkit sits behind Cloudflare, which blocks datacenter IPs
+  # (GitHub Actions) with HTTP 403 - confirmed even with a real headful Chrome.
+  # A datacenter host CANNOT reach Blinkit, so the scheduled trigger is removed.
+  # This only works from a residential connection (see README). Kept for manual
+  # runs / reference only.
   workflow_dispatch: {}
 
 concurrency:
