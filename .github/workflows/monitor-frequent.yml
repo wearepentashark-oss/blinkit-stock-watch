@@ -13,7 +13,12 @@ name: Blinkit stock watch (frequent ~2-3 min)
 
 on:
   schedule:
-    - cron: "0 * * * *"   # once an hour; the job then loops internally for ~58 min
+    # Trigger every 15 min. Each job still loops internally for ~58 min; the
+    # concurrency group below means extra triggers just keep a fresh run QUEUED
+    # (never a second run at once), so if GitHub ever delays or drops a restart
+    # - e.g. at the busy top of the hour - the next trigger fills the gap and
+    # coverage stays continuous through the night. No double alerts.
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 concurrency:
