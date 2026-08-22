@@ -178,17 +178,32 @@ def run_once(page, cfg, state):
     return len(alerts)
 
 
+STEALTH_JS = (
+    "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+    "window.chrome={runtime:{}};"
+    "Object.defineProperty(navigator,'languages',{get:()=>['en-IN','en']});"
+    "Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3,4,5]});"
+)
+
+
 def make_page(pw):
-    browser = pw.chromium.launch(headless=True, args=[
-        "--no-sandbox", "--disable-blink-features=AutomationControlled",
-    ])
+    # Headful real Chrome (run under xvfb) + de-cloaking: Cloudflare flags
+    # headless/automated browsers, so this looks like a normal Chrome window.
+    headful = os.environ.get("HEADFUL", "1") != "0"
+    browser = pw.chromium.launch(
+        headless=not headful,
+        channel="chrome",
+        args=["--no-sandbox", "--disable-blink-features=AutomationControlled",
+              "--disable-dev-shm-usage"],
+    )
     ctx = browser.new_context(user_agent=UA, locale="en-IN",
                               timezone_id="Asia/Kolkata",
-                              viewport={"width": 1280, "height": 800})
+                              viewport={"width": 1366, "height": 768})
+    ctx.add_init_script(STEALTH_JS)
     page = ctx.new_page()
     # Load the site so Cloudflare's challenge runs and the browser gets cleared.
     page.goto("https://blinkit.com", wait_until="domcontentloaded", timeout=60000)
-    page.wait_for_timeout(6000)
+    page.wait_for_timeout(8000)
     return browser, page
 
 
