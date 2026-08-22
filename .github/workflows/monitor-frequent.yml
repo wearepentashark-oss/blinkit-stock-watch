@@ -1,23 +1,19 @@
 name: Blinkit stock watch (frequent ~2-3 min)
 
-# NEAR-REAL-TIME OPTION. Use this INSTEAD OF monitor.yml, not alongside it
-# (running both would double your alerts - delete/disable monitor.yml first).
+# NEAR-REAL-TIME monitor. Each job loops internally (checking every LOOP_MINUTES)
+# for LOOP_TOTAL_MINUTES - up to GitHub's 6-hour job limit - so coverage is
+# continuous from a single trigger. The schedule below is just RESTART insurance.
 #
-# Why a loop? GitHub's cron won't reliably fire faster than ~5 min. So instead
-# this triggers once an hour and then the script checks every LOOP_MINUTES for
-# ~55 minutes before the job ends and the next hourly trigger takes over. That
-# gives a true ~2-3 minute cadence.
-#
-# COST: free only on a PUBLIC repo (unlimited Actions minutes). On a PRIVATE
-# repo this burns far past the 2,000 free minutes/month - see README.
+# COST: free only on a PUBLIC repo (unlimited Actions minutes). On a PRIVATE repo
+# this burns far past the 2,000 free minutes/month - see README.
 
 on:
   schedule:
-    # Trigger every 15 min. Each job still loops internally for ~58 min; the
-    # concurrency group below means extra triggers just keep a fresh run QUEUED
-    # (never a second run at once), so if GitHub ever delays or drops a restart
-    # - e.g. at the busy top of the hour - the next trigger fills the gap and
-    # coverage stays continuous through the night. No double alerts.
+    # Fire every 15 min as insurance. The concurrency group means extra triggers
+    # never start a second run - they just keep ONE fresh run QUEUED, which starts
+    # the moment the current ~6h job ends (or if it ever dies early). So even if
+    # GitHub delays/drops some scheduled triggers overnight, coverage holds and
+    # there are no overlaps / no double alerts.
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
@@ -31,7 +27,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 63
+    timeout-minutes: 358           # just above LOOP_TOTAL_MINUTES; GitHub caps jobs at 6h
     steps:
       - uses: actions/checkout@v4
 
@@ -43,20 +39,40 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PYTHONUNBUFFERED: "1"      # stream watch.py's log lines live instead of buffering
-          LOOP_MINUTES: "1.5"        # check every 1.5 minutes (e.g. "1" for 1 min, "2" for 2 min)
-          LOOP_TOTAL_MINUTES: "58"   # keep looping for ~58 min, then the hourly trigger restarts it
+          PYTHONUNBUFFERED: "1"        # stream watch.py's log lines live instead of buffering
+          LOOP_MINUTES: "1.5"          # check every 1.5 minutes (e.g. "1" for 1 min, "2" for 2 min)
+          LOOP_TOTAL_MINUTES: "350"    # loop ~5h50m, then a scheduled trigger restarts a fresh job
         run: python watch.py
 
+      # Persist state.json so alerts only fire on changes. This is bookkeeping only -
+      # it must NEVER fail the run (monitoring already happened above), and it must
+      # survive the remote moving under us, so we retry by re-basing our state on top
+      # of the latest remote. continue-on-error keeps the run green regardless.
       - name: Save state
         if: always()
+        continue-on-error: true
         run: |
           git config user.name "stock-bot"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add state.json
           if git diff --cached --quiet; then
-            echo "No state change."
-          else
-            git commit -m "update stock state [skip ci]"
-            git push
+            echo "No state change - nothing to save."
+            exit 0
           fi
+          for i in 1 2 3 4 5; do
+            git fetch -q origin main || true
+            git reset -q --soft origin/main      # rebase our change onto latest remote, keep it staged
+            git add state.json
+            if git diff --cached --quiet; then
+              echo "State already current on remote."
+              exit 0
+            fi
+            git commit -q -m "update stock state [skip ci]"
+            if git push -q origin HEAD:main; then
+              echo "State pushed."
+              exit 0
+            fi
+            echo "Push rejected (remote moved) - retry $i..."
+            sleep 3
+          done
+          echo "Could not push state after retries (non-fatal; monitoring was unaffected)."
