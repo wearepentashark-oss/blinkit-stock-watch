@@ -18,6 +18,17 @@ import time
 import urllib.parse
 import urllib.request
 
+# Blinkit's edge blocks bare Python HTTP clients (HTTP 403) via TLS/bot
+# fingerprinting. curl_cffi impersonates a real Chrome TLS handshake, which
+# gets past it. If it isn't installed we fall back to urllib (works locally
+# from a residential IP, but will likely be 403'd from a datacenter).
+try:
+    from curl_cffi import requests as cffi_requests  # type: ignore
+    _HAVE_CFFI = True
+except Exception:  # noqa: BLE001
+    cffi_requests = None
+    _HAVE_CFFI = False
+
 IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 META_KEY = "__meta__"
 
@@ -64,16 +75,29 @@ def fetch_inventory(pid, lat, lon):
         "origin": "https://blinkit.com",
         "referer": "https://blinkit.com/",
     }
-    req = urllib.request.Request(url, data=b"{}", headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            status = resp.getcode()
-            body = resp.read().decode("utf-8", "replace")
-    except urllib.error.HTTPError as e:
-        # 400 usually means no Blinkit store serves this lat/lon.
-        return None, e.code, "no store / bad request" if e.code == 400 else f"http {e.code}"
-    except Exception as e:  # noqa: BLE001
-        return None, 0, f"error: {e}"
+    if _HAVE_CFFI:
+        try:
+            r = cffi_requests.post(url, data=b"{}", headers=headers,
+                                   impersonate="chrome", timeout=25)
+            status = r.status_code
+            body = r.text
+            if status == 400:
+                return None, status, "no store / bad request"
+            if status != 200:
+                return None, status, f"http {status}"
+        except Exception as e:  # noqa: BLE001
+            return None, 0, f"error: {e}"
+    else:
+        req = urllib.request.Request(url, data=b"{}", headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                status = resp.getcode()
+                body = resp.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            # 400 usually means no Blinkit store serves this lat/lon.
+            return None, e.code, "no store / bad request" if e.code == 400 else f"http {e.code}"
+        except Exception as e:  # noqa: BLE001
+            return None, 0, f"error: {e}"
 
     try:
         data = json.loads(body)

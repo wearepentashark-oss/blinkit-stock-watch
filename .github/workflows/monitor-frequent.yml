@@ -35,6 +35,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install deps (browser-impersonating HTTP client to bypass Blinkit's 403)
+        run: pip install --quiet curl_cffi
+
       - name: Check stock on a loop and notify
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
