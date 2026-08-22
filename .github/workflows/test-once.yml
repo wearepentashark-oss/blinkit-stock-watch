@@ -1,30 +1,32 @@
 name: Blinkit test (one pass)
 
-# Manual diagnostic: runs a single check pass and prints the HTTP status for
-# every product x location, so we can confirm requests get 200 (not 403) from
-# the GitHub runner. Does not loop and does not commit state.
+# Manual diagnostic: runs a single check pass with the REAL BROWSER checker and
+# prints the HTTP status for every product x location, to confirm the headless
+# browser gets past Cloudflare (status 200, not 403). Does not loop or commit.
 
 on:
   workflow_dispatch: {}
 
 concurrency:
-  group: blinkit-test   # separate group so it runs immediately, not behind the main watcher
+  group: blinkit-test   # separate group so it runs immediately
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install deps
-        run: pip install --quiet curl_cffi
-      - name: One check pass
+      - name: Install Playwright + Chromium
+        run: |
+          pip install --quiet playwright
+          python -m playwright install --with-deps chromium
+      - name: One check pass (real browser)
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONUNBUFFERED: "1"
-          # LOOP_MINUTES unset -> watch.py runs exactly one pass and exits.
-        run: python watch.py
+          # LOOP_MINUTES unset -> one pass.
+        run: python browser_check.py
